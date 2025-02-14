@@ -184,11 +184,11 @@ def random_config():
         delimiters = sorted(random.sample(range(CPUS - 1), Q_PER_DEVICE - 1))
         delimiters.append(CPUS - 1)
         random.shuffle(cpus)
-        del_indx = 0
+        delimeters_indx = 0
         for indx in range(len(cpus)):
-            if indx > delimiters[del_indx]:
-                del_indx += 1
-            conf[str(device)][str(del_indx)].append(str(cpus[indx]))
+            if indx > delimiters[delimeters_indx]:
+                delimeters_indx += 1
+            conf[str(device)][str(delimeters_indx)].append(str(cpus[indx]))
     return conf
 
 #####################################################################
@@ -212,6 +212,7 @@ def arrange_badly(conf, curr_queue, curr_device, cpus):
 
     
 def create_bad_example_for_greedy():
+    #num cpus must be a power of 4
     good, bad, ugly = [cpu for cpu in range(1024)], [], []
     conf = defaultdict(lambda: defaultdict(list))
     curr_device = 0
