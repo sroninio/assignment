@@ -154,7 +154,15 @@ def validate_solution(queue_to_hosts, sol):
     return True, max(cpus_freq.values()) - min(cpus_freq.values()), cpus_freq
             
 
+#######################THIS FUNCTION CREATES CONF WITH EXTREMELY BAD OPTIMAL SOLUTION##############################################
+def destroy_conf_to_create_extremely_bad_optimal_solution(conf):
+    for device in conf:
+        conf[str(device)][Q_PER_DEVICE].append(str(CPUS))
+#####################################################################
+    
 
+
+#######################THIS FUNCTION CREATES RANDOM CONF WITH CONST AMOUNT OF QUEUES PER CONTROLLER##############################################
 def random_config():
     #{device->{q->cpus}}
     conf = defaultdict(lambda: defaultdict(list))
@@ -170,6 +178,9 @@ def random_config():
             conf[str(device)][str(del_indx)].append(str(cpus[indx]))
     return conf
 
+#####################################################################
+
+#######################THOSE 2 FUNCTIONS CREATE A VERY BAD CONF FOR GREEDY##############################################
 
 def arrange_badly(conf, curr_queue, curr_device, cpus):
     if len(cpus) % 4 != 0:
@@ -209,6 +220,7 @@ def create_bad_example_for_greedy():
                 ugly.append(cpu)
     return conf
 
+#####################################################################
 if __name__ == "__main__":
     highest_solutions_diff = 0
     worst_conf = 0
