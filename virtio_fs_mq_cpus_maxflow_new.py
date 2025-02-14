@@ -237,7 +237,7 @@ def create_bad_example_for_greedy():
 #####################################################################
 if __name__ == "__main__":
     highest_solutions_diff = 0
-    worst_conf = 0
+    worst_conf = None
     worst_greedy = 0
     worst_flow = 0
     
