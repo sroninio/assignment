@@ -8,6 +8,9 @@ CPUS = 64
 DEVICES = 28
 Q_PER_DEVICE = 17
 
+
+#######################THIS FUNCTION CONVERT FILE SYSTEM CONF STRUCTURE TO DICTIONARY STRUCTURE##############################################
+
 def parse_cpu_list(cpu_list):
     """
     Parse a cpu_list string (e.g., "6, 7, 70, 71") into a list of integers.
@@ -15,7 +18,7 @@ def parse_cpu_list(cpu_list):
     return [int(cpu.strip()) for cpu in cpu_list.split(",")]
 
 def translate_files_to_mapping(base_path):
-    queue_to_hosts = defaultdict(lambda : defaultdict(list))
+    conf = defaultdict(lambda : defaultdict(list))
     devices = sorted([d for d in os.listdir(base_path) if d.isdigit()])
     for device in devices:
         device_path = os.path.join(base_path, device)
@@ -27,8 +30,13 @@ def translate_files_to_mapping(base_path):
                 continue
             with open(cpu_list_path, "r") as f:
                 cpu_list = parse_cpu_list(f.read().strip())
-            queue_to_hosts[str(device)][str(mq)] = cpu_list
-    return queue_to_hosts
+            conf[str(device)][str(mq)] = cpu_list
+    return conf
+
+#####################################################################
+
+
+#######################THOSE FUNCTIONS SOLVES THE PROBLEM USING MIN CUT MAX FLOW SOLUTION##############################################
 
 def convert_flow_to_res(flow_dict):
     flow_cpus = defaultdict(list)
@@ -39,12 +47,12 @@ def convert_flow_to_res(flow_dict):
 				    flow_cpus[u.split("_")[0]].append(int(v))
     return  [','.join(map(str, x[1])) for x in (sorted(flow_cpus.items())) ]
 
-def solve_for_min_max_jobs(queue_to_hosts, minJobsOnCpu, maxJobsOnCpu, num_queues):
+def solve_for_min_max_jobs(conf, minJobsOnCpu, maxJobsOnCpu, num_queues):
     #dv id incoming-outgoing flow
     G = nx.DiGraph()
     G.add_node("end", required_dv = 1 * num_queues, curr_dv = 0)
 
-    for device, q_to_host in queue_to_hosts.items():
+    for device, q_to_host in conf.items():
         for qq, cpus in q_to_host.items():
             q = str(device) + "_" + str(qq)
             G.add_node(q, required_dv = -1, curr_dv = 0)
@@ -74,9 +82,9 @@ def solve_for_min_max_jobs(queue_to_hosts, minJobsOnCpu, maxJobsOnCpu, num_queue
 
 
 
-def find_best_solution_max_flow(queue_to_hosts):
+def find_best_solution_max_flow(conf):
     all_cpus, num_queues = set(), 0
-    for device, q_to_host in queue_to_hosts.items():
+    for device, q_to_host in conf.items():
         for q, cpus in q_to_host.items():
             num_queues += 1
             all_cpus.update(cpus)
@@ -87,17 +95,23 @@ def find_best_solution_max_flow(queue_to_hosts):
         maxJobsOnCpu = max(diff, highBoundAvg)
         minJobsOnCpu = maxJobsOnCpu - diff
         while maxJobsOnCpu <= num_queues and minJobsOnCpu <= lowBoundAvg:
-            res = solve_for_min_max_jobs(queue_to_hosts, minJobsOnCpu, 
+            res = solve_for_min_max_jobs(conf, minJobsOnCpu, 
                     maxJobsOnCpu, num_queues)
             if len(res) > 0:
                 return res
             maxJobsOnCpu += 1
             minJobsOnCpu += 1
 
-def find_best_solution_greedy(queue_to_hosts):
+#####################################################################
+
+
+
+#######################THIS FUNCTION SOLVES THE PROBLEM USING GREEDY APPROACH##############################################
+
+def find_best_solution_greedy(conf):
     cpus = []  # Array to store CPUs for each device
     global_cpu_usage = defaultdict(int)  # Track global usage of each CPU for fairness
-    for device, q_to_host in sorted(queue_to_hosts.items()):
+    for device, q_to_host in sorted(conf.items()):
         device_cpus = set()  # Track unique CPUs for this device
         for qq, cpu_list in q_to_host.items():
             available_cpus = [cpu for cpu in cpu_list if cpu not in device_cpus]
@@ -109,27 +123,22 @@ def find_best_solution_greedy(queue_to_hosts):
         cpus.append(list(device_cpus))
     return [','.join([str(cpu) for cpu in device]) for device in cpus]
     
-  
-    
+#####################################################################
 
 
-def solveFlow(base_path="/tmp/mapping"):
-    return find_best_solution_max_flow(translate_files_to_mapping(base_path))  
-    
+#######################THOSE FUNCTIONS VALIDATES SOLUTION GIVEN CONF AND RETURN THE SOLUTION VALUE##############################################
 
-
-
-def getBackMapping(queue_to_hosts):
+def getBackMapping(conf):
     back_mapping = defaultdict(lambda : defaultdict(str))
-    for device, q_to_host in queue_to_hosts.items():
+    for device, q_to_host in conf.items():
         for qq, cpu_list in q_to_host.items():
             for cpu in cpu_list:
                 back_mapping[device][cpu] = qq
     return back_mapping
 
-def validate_solution(queue_to_hosts, sol):
-    back_mapping = getBackMapping(queue_to_hosts)
-    flat_forward = sorted(queue_to_hosts.items())
+def validate_solution(conf, sol):
+    back_mapping = getBackMapping(conf)
+    flat_forward = sorted(conf.items())
     flat_back = sorted(back_mapping.items())
 
 
@@ -140,7 +149,7 @@ def validate_solution(queue_to_hosts, sol):
         assigned_cpus_str = sol[indx].split(",")
         num_queues = len(flat_forward[indx][1])
         if len(assigned_cpus_str) != num_queues:
-            print ("AAAAAAA")
+            print ("WRONG SOLUTION")
             return False, -1
         cpus_to_queues = flat_back[indx][1]
         used_queues = set()
@@ -148,13 +157,16 @@ def validate_solution(queue_to_hosts, sol):
             used_queues.add(cpus_to_queues[cpu])
             cpus_freq[cpu] += 1
         if len(used_queues) != num_queues:
-            print ("BBBBB", num_queues, len(used_queues))
+            print ("WRONG", num_queues, len(used_queues))
             return False, -1
 
     return True, max(cpus_freq.values()) - min(cpus_freq.values()), cpus_freq
+
+#####################################################################
+
             
 
-#######################THIS FUNCTION CREATES CONF WITH EXTREMELY BAD OPTIMAL SOLUTION##############################################
+#######################THIS FUNCTION CONVERTS GIVEN CONF TO A CONF WITH EXTREMELY BAD OPTIMAL SOLUTION##############################################
 def destroy_conf_to_create_extremely_bad_optimal_solution(conf):
     for device in conf:
         conf[str(device)][Q_PER_DEVICE].append(str(CPUS))
@@ -165,6 +177,7 @@ def destroy_conf_to_create_extremely_bad_optimal_solution(conf):
 #######################THIS FUNCTION CREATES RANDOM CONF WITH CONST AMOUNT OF QUEUES PER CONTROLLER##############################################
 def random_config():
     #{device->{q->cpus}}
+    # we can easily randomize num controllers and how many queues are in each controller below also
     conf = defaultdict(lambda: defaultdict(list))
     cpus = [cpu for cpu in range(CPUS)]
     for device in range(DEVICES):
@@ -180,7 +193,7 @@ def random_config():
 
 #####################################################################
 
-#######################THOSE 2 FUNCTIONS CREATE A VERY BAD CONF FOR GREEDY##############################################
+#######################THOSE  FUNCTIONS CREATE A VERY BAD CONF FOR GREEDY##############################################
 
 def arrange_badly(conf, curr_queue, curr_device, cpus):
     if len(cpus) % 4 != 0:
@@ -230,11 +243,11 @@ if __name__ == "__main__":
 
 
     for i in range(100000):
-        queue_to_hosts = random_config()
-        flow_sol = find_best_solution_max_flow(queue_to_hosts)
-        greedy_sol = find_best_solution_greedy(queue_to_hosts)
-        valid_flow, res_flow, cpus_freq = validate_solution(queue_to_hosts, flow_sol)
-        valid_greedy, res_greedy, cpus_freq = validate_solution(queue_to_hosts, greedy_sol)
+        conf = random_config()
+        flow_sol = find_best_solution_max_flow(conf)
+        greedy_sol = find_best_solution_greedy(conf)
+        valid_flow, res_flow, cpus_freq = validate_solution(conf, flow_sol)
+        valid_greedy, res_greedy, cpus_freq = validate_solution(conf, greedy_sol)
         if not valid_flow:
             print("flow solution is not valid")
             break
@@ -247,13 +260,13 @@ if __name__ == "__main__":
 
         if res_greedy - res_flow > highest_solutions_diff:
             highest_solutions_diff = res_greedy - res_flow
-            worst_conf = queue_to_hosts
+            worst_conf = conf
         worst_greedy = max(worst_greedy, res_greedy)
         worst_flow = max(worst_flow, res_flow)
         print(f"highest diff till now: {highest_solutions_diff} worst greedy till now:{worst_greedy} worst flow till now: {worst_flow}  curr res greedy: {res_greedy} curr res flow: {res_flow}.")
         if(i % 500 == 0):
             print(worst_conf)
-    print (best_conf)
+    print (worst_conf)
 
 
 
