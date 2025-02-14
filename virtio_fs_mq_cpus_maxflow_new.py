@@ -4,6 +4,9 @@ import networkx as nx
 import math
 import random
 
+CPUS = 64
+DEVICES = 28
+Q_PER_DEVICE = 17
 
 def parse_cpu_list(cpu_list):
     """
@@ -148,27 +151,15 @@ def validate_solution(queue_to_hosts, sol):
             print ("BBBBB", num_queues, len(used_queues))
             return False, -1
 
-    return True, max(cpus_freq.values()) - min(cpus_freq.values())
+    return True, max(cpus_freq.values()) - min(cpus_freq.values()), cpus_freq
             
-CPUS = 64
-DEVICES = 28
-Q_PER_DEVICE = 17
 
-
-
-
-
-
-
-    
 
 def random_config():
     #{device->{q->cpus}}
-    #return {"1":{"1":["0", "1"], "2":["2","3"]}, "2":{"1":["0", "2"], "2":["1","3"]}}
     conf = defaultdict(lambda: defaultdict(list))
     cpus = [cpu for cpu in range(CPUS)]
     for device in range(DEVICES):
-        queues = random.randint(1, Q_PER_DEVICE)
         delimiters = sorted(random.sample(range(CPUS - 1), Q_PER_DEVICE - 1))
         delimiters.append(CPUS - 1)
         random.shuffle(cpus)
@@ -180,22 +171,58 @@ def random_config():
     return conf
 
 
+def arrange_badly(conf, curr_queue, curr_device, cpus):
+    if len(cpus) % 4 != 0:
+        raise(Exception("WTF"))
+    quadr_indx = 0
+    while quadr_indx < len(cpus):
+        c1, c2, c3, c4 = cpus[quadr_indx], cpus[quadr_indx + 1], cpus[quadr_indx + 2], cpus[quadr_indx + 3]
+        conf[str(curr_device)][str(curr_queue)] = [str(c1), str(c2)]
+        conf[str(curr_device)][str(curr_queue + 1)] = [str(c3), str(c4)]
+        conf[str(curr_device + 1)][str(curr_queue)] = [str(c1), str(c3)]
+        conf[str(curr_device + 1)][str(curr_queue + 1)] = [str(c2), str(c4)]
+        curr_queue += 2
+        quadr_indx += 4
+    return curr_queue
 
 
     
+def create_bad_example_for_greedy():
+    good, bad, ugly = [cpu for cpu in range(1024)], [], []
+    conf = defaultdict(lambda: defaultdict(list))
+    curr_device = 0
+    while len(good) > 1:
+        curr_queue = 0
+        curr_queue = arrange_badly(conf, curr_queue, curr_device, good)
+        curr_queue = arrange_badly(conf, curr_queue, curr_device, bad)
+        curr_queue = arrange_badly(conf, curr_queue, curr_device, ugly)
+        greedy_sol = find_best_solution_greedy(conf)
+        valid_greedy, res_greedy, cpus_freq = validate_solution(conf, greedy_sol)
+        curr_device += 2
+        good, bad, ugly = [], [], []
+        for cpu in cpus_freq:
+            if cpus_freq[cpu] == curr_device:
+                good.append(cpu)                
+            elif cpus_freq[cpu] == 0:
+                bad.append(cpu)
+            else:
+                ugly.append(cpu)
+    return conf
 
-
-
-   
 if __name__ == "__main__":
-    best = 0
-    best_conf = {}
+    highest_solutions_diff = 0
+    worst_conf = 0
+    worst_greedy = 0
+    worst_flow = 0
+    
+
+
     for i in range(100000):
         queue_to_hosts = random_config()
         flow_sol = find_best_solution_max_flow(queue_to_hosts)
         greedy_sol = find_best_solution_greedy(queue_to_hosts)
-        valid_flow, res_flow = validate_solution(queue_to_hosts, flow_sol)
-        valid_greedy, res_greedy = validate_solution(queue_to_hosts, greedy_sol)
+        valid_flow, res_flow, cpus_freq = validate_solution(queue_to_hosts, flow_sol)
+        valid_greedy, res_greedy, cpus_freq = validate_solution(queue_to_hosts, greedy_sol)
         if not valid_flow:
             print("flow solution is not valid")
             break
@@ -206,12 +233,14 @@ if __name__ == "__main__":
             print ("WTF")
             break
 
-        if res_greedy - res_flow > best:
-            best = res_greedy - res_flow
-            best_conf = queue_to_hosts
-        print(best, res_flow, res_greedy)
-        if(i % 100 == 0):
-            print(best_conf)
+        if res_greedy - res_flow > highest_solutions_diff:
+            highest_solutions_diff = res_greedy - res_flow
+            worst_conf = queue_to_hosts
+        worst_greedy = max(worst_greedy, res_greedy)
+        worst_flow = max(worst_flow, res_flow)
+        print(f"highest diff till now: {highest_solutions_diff} worst greedy till now:{worst_greedy} worst flow till now: {worst_flow}  curr res greedy: {res_greedy} curr res flow: {res_flow}.")
+        if(i % 500 == 0):
+            print(worst_conf)
     print (best_conf)
 
 
