@@ -264,7 +264,7 @@ if __name__ == "__main__":
             worst_conf = conf
         worst_greedy = max(worst_greedy, res_greedy)
         worst_flow = max(worst_flow, res_flow)
-        print(f"highest diff till now: {highest_solutions_diff} worst greedy till now:{worst_greedy} worst flow till now: {worst_flow}  curr res greedy: {res_greedy} curr res flow: {res_flow}.")
+        print(f"highest diff till now: {highest_solutions_diff} worst greedy till now:{worst_greedy} worst flow till now: {worst_flow}  curr res greedy: {res_greedy} curr res flow: {res_flow} avg per queue: {DEVICES * Q_PER_DEVICE / CPUS} ")
         if(i % 500 == 0):
             print(worst_conf)
     print (worst_conf)
